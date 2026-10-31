@@ -39,15 +39,22 @@ from base_datos import cargar_interacciones, cargar_lectores, cargar_libros
 
 def cargar_datos(ruta_db):
     """Carga todo lo que necesitan las estrategias, en un diccionario."""
-    df = cargar_interacciones(ruta_db)
-    libros = cargar_libros(ruta_db)
-    lectores = cargar_lectores(ruta_db)
+    return construir_datos(cargar_interacciones(ruta_db), cargar_libros(ruta_db), cargar_lectores(ruta_db))
+
+
+def construir_datos(df, libros, lectores):
+    """Arma el diccionario de datos a partir de las tablas ya cargadas.
+    (Separado de cargar_datos para poder armarlo con un pedazo de df,
+    por ejemplo solo las lecturas anteriores a una fecha.)"""
     en_catalogo = set(libros["id_libro"])
     return {
         "df": df,
+        "libros": libros,
+        "lectores": lectores,
         "catalogo": libros["id_libro"].tolist(),
         "genero_de_libro": libros.set_index("id_libro")["genero_libro"].to_dict(),
         "genero_de_lector": lectores.set_index("id_lector")["genero_lector"].to_dict(),
+        "autor_de_libro": libros.set_index("id_libro")["autor"].to_dict(),
         "leidos": df.groupby("id_lector")["id_libro"].apply(set).to_dict(),
         # solo libros del catalogo (hay unas pocas lecturas de libros que no estan en 'libros')
         "populares": [b for b in df["id_libro"].value_counts().index if b in en_catalogo],
@@ -268,9 +275,10 @@ def estrategia_desde_puntajes(puntajes, X, lectores, libros, datos, n):
     return estrategia
 
 
-def crear_user_knn(datos, n=config.N_RECOMENDACIONES, k=config.K_VECINOS):
+def entrenar_user_knn(datos, k=config.K_VECINOS):
     """user-kNN con similitud coseno: puntaje(lector, libro) = suma de las
-    similitudes de los k lectores mas parecidos que leyeron ese libro."""
+    similitudes de los k lectores mas parecidos que leyeron ese libro.
+    Devuelve (puntajes, X, lectores, libros)."""
     X, lectores, libros = armar_matriz(datos)
     largos = np.sqrt(X.sum(axis=1))
     largos[largos == 0] = 1
@@ -283,12 +291,18 @@ def crear_user_knn(datos, n=config.N_RECOMENDACIONES, k=config.K_VECINOS):
             similitud[f, inicio + f] = 0  # un lector no es vecino de si mismo
         vecinos = quedarse_con_los_k_mayores(similitud, k)
         puntajes[inicio:inicio + 1000] = vecinos @ X
+    return puntajes, X, lectores, libros
+
+
+def crear_user_knn(datos, n=config.N_RECOMENDACIONES, k=config.K_VECINOS):
+    puntajes, X, lectores, libros = entrenar_user_knn(datos, k)
     return estrategia_desde_puntajes(puntajes, X, lectores, libros, datos, n)
 
 
-def crear_ease(datos, n=config.N_RECOMENDACIONES, lambda_=config.LAMBDA_EASE):
+def entrenar_ease(datos, lambda_=config.LAMBDA_EASE):
     """EASE: pesos libro x libro con formula cerrada (regresion ridge con la
-    diagonal forzada a 0, para que un libro no se recomiende a si mismo)."""
+    diagonal forzada a 0, para que un libro no se recomiende a si mismo).
+    Devuelve (puntajes, X, lectores, libros)."""
     X, lectores, libros = armar_matriz(datos)
     G = (X.T @ X).astype(np.float64)
     G[np.diag_indices_from(G)] += lambda_
@@ -296,6 +310,11 @@ def crear_ease(datos, n=config.N_RECOMENDACIONES, lambda_=config.LAMBDA_EASE):
     B = -P / np.diag(P)
     np.fill_diagonal(B, 0)
     puntajes = X @ B.astype(np.float32)
+    return puntajes, X, lectores, libros
+
+
+def crear_ease(datos, n=config.N_RECOMENDACIONES, lambda_=config.LAMBDA_EASE):
+    puntajes, X, lectores, libros = entrenar_ease(datos, lambda_)
     return estrategia_desde_puntajes(puntajes, X, lectores, libros, datos, n)
 
 

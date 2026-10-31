@@ -20,6 +20,7 @@ import time
 from collections import defaultdict
 
 import config
+import dos_etapas
 import modelos
 
 
@@ -89,6 +90,8 @@ def estrategias_a_evaluar(datos, n):
         f"user-kNN (k={config.K_VECINOS})": lambda: modelos.crear_user_knn(datos, n),
         f"EASE (lambda={config.LAMBDA_EASE})": lambda: modelos.crear_ease(datos, n),
         "hibrido (pop / user-kNN / EASE)": lambda: modelos.crear_hibrido(datos, n),
+        "populares recientes": lambda: dos_etapas.crear_populares_recientes(datos, n),
+        "dos etapas (retrieval + ranking)": lambda: dos_etapas.crear_dos_etapas(datos, n),
     }
 
 

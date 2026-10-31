@@ -113,6 +113,44 @@ Resultado con el corte temporal (744 lectores):
 - En esos 41 lectores de 3 a 6 libros, user-kNN da 0,067 y EASE 0,061. La diferencia va a favor de user-kNN, pero con tan pocos lectores el intervalo es amplio: +0,006 [−0,018; +0,028].
 - Conclusión: el híbrido tiene sentido conceptual y no empeora nada, pero con estos datos no se puede afirmar que mejore. Kaggle lo puede confirmar o descartar (`python main.py kaggle hibrido`).
 
+### Recomendador en dos etapas: retrieval + ranking
+
+`dos_etapas.py` separa el problema en dos pasos:
+
+1. **Retrieval (generación de candidatos):** para cada lector junta unos 350 candidatos de cuatro fuentes. El objetivo es que el libro correcto esté entre ellos (*recall*).
+2. **Ranking:** un `HistGradientBoostingClassifier` estima, para cada candidato, la probabilidad de que el lector lo lea. Se recomiendan los 20 más probables. El objetivo es el orden (NDCG).
+
+**Retrieval: cuánto encuentra cada fuente** (recall con el corte temporal = qué parte de lo leído en 2024 queda entre los candidatos):
+
+| Fuente de candidatos | Candidatos | Recall |
+|---|---|---|
+| Notebook: géneros + 200 más leídos | 200 | 0,149 |
+| 100 más leídos de la historia | 100 | 0,096 |
+| **100 más leídos del último año** | 100 | **0,147** |
+| user-kNN, 200 mejores | 200 | 0,179 |
+| EASE, 200 mejores | 200 | 0,239 |
+| **EASE 200 + user-kNN 200 + recientes 100 + mismo autor 50** | ~350 | **0,315** |
+
+- Lo más leído del último año, solo, encuentra casi lo mismo que el retrieval del notebook con la mitad de candidatos. Los gustos cambian con el tiempo.
+- El filtro por géneros del notebook casi no filtra: deja una mediana de 42.110 candidatos de 48.000, porque los lectores leen de muchos géneros.
+
+**Ranking: variables que mira el modelo** para cada par lector-libro: el puntaje y el puesto en EASE y en user-kNN, de qué fuente vino el candidato, cuántas lecturas tiene el libro (en total y en el último año), su rating promedio, cuántos libros del mismo autor leyó el lector, la proporción de sus lecturas en ese género y cuánto lee el lector.
+
+**Cómo se entrena el ranking sin hacer trampa:** con un corte temporal **dentro** de train. Con lo leído antes de 2023 se arman los candidatos y las variables, y la respuesta es si el lector leyó ese libro en 2023 (con rating ≥ 8). El test de 2024 no se toca. Para Kaggle se hace lo mismo un año más tarde: aprende con lo leído en 2024 y recomienda con todos los datos.
+
+A diferencia del KNN de regresión del notebook, este modelo aprende a predecir **si el lector va a leer el libro** (lo que mide la competencia), no qué rating le pondría.
+
+**Resultado con el corte temporal (744 lectores):**
+
+| Estrategia | NDCG@20 | precision@20 | recall@20 |
+|---|---|---|---|
+| populares recientes | 0,0265 | 0,0116 | 0,0508 |
+| EASE | 0,0416 | 0,0173 | 0,0616 |
+| híbrido | 0,0419 | 0,0174 | 0,0617 |
+| **dos etapas** | **0,0589** | **0,0247** | **0,0892** |
+
+**Dos etapas contra EASE: +0,0173 (+41 %), IC 95 % [+0,0096; +0,0254], significativa.**
+
 ### Ojo con comparar el split al azar con Kaggle
 
 El mejor puntaje en Kaggle fue 0,0225 con el KNN de regresión. Acá ese mismo modelo da 0,062. No son comparables: el test de Kaggle está oculto, tiene otros lectores y probablemente otro criterio, quizás temporal o con todas las lecturas y no solo las positivas. Esta evaluación sirve para **ordenar** las estrategias. La prueba definitiva es subir los CSV a Kaggle (`python main.py kaggle --todas`).
@@ -125,7 +163,8 @@ sistema_recomendacion_libros/
 ├── config.py        rutas y parámetros
 ├── base_datos.py    carga de data.db (renombra genero -> genero_libro / genero_lector)
 ├── dataset.py       separación train / test 80/20 por lector
-├── modelos.py       las 7 estrategias
+├── modelos.py       estrategias base (azar, popularidad, género, KNN de regresión, user-kNN, EASE, híbrido)
+├── dos_etapas.py    recomendador en dos etapas: retrieval + ranking
 ├── evaluacion.py    NDCG, precision, recall, hit rate e intervalos de confianza
 ├── tests/           tests automáticos (pytest)
 ├── resultados/      gráficos (por ejemplo, NDCG según actividad del lector)
@@ -173,6 +212,8 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 | `user-kNN` | Recomienda lo que leyeron los 50 lectores más parecidos (similitud coseno) |
 | `EASE` | Modelo lineal libro × libro con fórmula cerrada (Steck, 2019) |
 | `hibrido` | Popularidad (menos de 3 libros), user-kNN (de 3 a 6) o EASE (7 o más), según cuánto leyó el lector |
+| `populares_recientes` | Los libros más leídos en el último año |
+| `dos_etapas` | Retrieval (EASE + user-kNN + recientes + mismo autor) y ranking con *gradient boosting* (ver arriba) |
 
 ## Tests
 
@@ -181,6 +222,7 @@ Cubren:
 - **Corte temporal**: en train no queda nada posterior al corte, test solo tiene lecturas positivas de lectores con pasado, se entienden los dos formatos de fecha y las fechas ilegibles quedan en train.
 - **Split anti-leakage**: ninguna lectura queda en train y test a la vez, test solo tiene lecturas positivas, se respeta el 20 %, la separación es reproducible y no modifica la base original.
 - **Métricas**: NDCG calculado a mano, y que premie acertar arriba.
+- **Dos etapas**: los candidatos nunca incluyen libros ya leídos, el ranking se entrena solo con lecturas anteriores al corte interno, y se leen bien los dos formatos de fecha (ignorando las fechas sueltas de 2026 cargadas por la página).
 - **Híbrido**: elige popularidad, user-kNN o EASE según las lecturas del lector.
 - **Estrategias**: ninguna recomienda libros ya leídos ni repite libros, un lector desconocido recibe popularidad y user-kNN recomienda lo que leyó el lector más parecido.
 
@@ -188,5 +230,6 @@ Cubren:
 
 - `K_VECINOS` y `LAMBDA_EASE` no se ajustaron para este dataset: son los valores del proyecto de recetas. El próximo paso es ajustarlos con un corte temporal **dentro de train** (por ejemplo, validar con 2023), sin tocar el test de 2024.
 - Con el corte temporal se puede probar darle más peso a las lecturas recientes, en la popularidad y en EASE.
+- **Dos etapas:** las fuentes de candidatos y sus cantidades se eligieron mirando el recall sobre el test de 2024. Lo correcto sería elegirlas con la validación de 2023. Los hiperparámetros del *gradient boosting* son los valores por defecto, sin ajustar. Las dos cosas se pueden mejorar sin tocar el test.
 - Para lectores sin historial, todas las estrategias caen en popularidad.
 - El catálogo de EASE y user-kNN excluye los libros con menos de 10 lecturas, así que esas estrategias nunca los recomiendan.

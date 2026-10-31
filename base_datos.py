@@ -13,10 +13,11 @@ import pandas as pd
 
 def cargar_interacciones(ruta_db):
     """Interacciones con el genero del libro y el del lector.
-    Columnas: id_lector, id_libro, rating, genero_libro, genero_lector."""
+    Columnas: id_lector, id_libro, fecha, rating, genero_libro, genero_lector.
+    'fecha' queda como texto tal cual viene en la base ("dd-mm-aaaa")."""
     con = sqlite3.connect(ruta_db)
     df = pd.read_sql_query("""
-        SELECT interacciones.id_lector, interacciones.id_libro, interacciones.rating,
+        SELECT interacciones.id_lector, interacciones.id_libro, interacciones.fecha, interacciones.rating,
                libros.genero AS genero_libro, lectores.genero AS genero_lector
           FROM interacciones
           LEFT JOIN libros USING (id_libro)
@@ -27,9 +28,9 @@ def cargar_interacciones(ruta_db):
 
 
 def cargar_libros(ruta_db):
-    """Todos los libros del catalogo con su genero: id_libro, genero_libro."""
+    """Todos los libros del catalogo: id_libro, genero_libro, autor."""
     con = sqlite3.connect(ruta_db)
-    libros = pd.read_sql_query("SELECT id_libro, genero AS genero_libro FROM libros", con)
+    libros = pd.read_sql_query("SELECT id_libro, genero AS genero_libro, autor FROM libros", con)
     con.close()
     return libros
 

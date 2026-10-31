@@ -64,3 +64,20 @@ LAMBDA_EASE = 500       # EASE
 # Hibrido: que estrategia usar segun cuantos libros leyo el lector
 MIN_LECTURAS_USER_KNN = 3   # menos de 3 libros -> popularidad
 MIN_LECTURAS_EASE = 7       # de 3 a 6 -> user-kNN; 7 o mas -> EASE
+
+# ---------------------------------------------------------------------------
+# Recomendador en dos etapas (dos_etapas.py)
+# ---------------------------------------------------------------------------
+
+# Retrieval: cuantos candidatos aporta cada fuente
+K_CAND_EASE = 200
+K_CAND_USER_KNN = 200
+K_CAND_RECIENTES = 100   # mas leidos en el ultimo año
+K_CAND_AUTOR = 50        # de autores que el lector ya leyo
+
+# Ranking: corte temporal interno para entrenar el modelo de ranking.
+# Evaluacion (train = hasta 2023): aprende con lo leido en 2023.
+# Kaggle (todos los datos): aprende con lo leido en 2024.
+CORTE_RANKER_EVALUACION = "2023-01-01"
+CORTE_RANKER_KAGGLE = "2024-01-01"
+MAX_LECTORES_RANKER = 1500   # lectores para entrenar el ranking (para que no tarde demasiado)
