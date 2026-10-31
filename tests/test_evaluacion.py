@@ -36,3 +36,16 @@ def test_intervalo_detecta_una_mejora_clara():
     mala = {u: {"NDCG@N": 0.0} for u in range(50)}
     dif, inf, sup = intervalo_diferencia(buena, mala, "NDCG@N")
     assert dif == 1.0 and inf > 0
+
+
+def test_intervalo_promedio_contiene_el_promedio():
+    from evaluacion import intervalo_promedio
+    prom, inf, sup = intervalo_promedio([0.0, 0.1, 0.2, 0.3, 0.4] * 10)
+    assert prom == pytest.approx(0.2)
+    assert inf <= prom <= sup
+
+
+def test_nombre_grupo():
+    from evaluacion import nombre_grupo
+    assert nombre_grupo(10, 24) == "10-24"
+    assert nombre_grupo(250, None) == "250+"

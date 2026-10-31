@@ -77,6 +77,26 @@ Con el corte temporal, los puntajes offline coinciden con los de Kaggle **en ord
 
 Contra popularidad, con el corte temporal: EASE +0,024 [+0,017; +0,032] y user-kNN +0,016 [+0,010; +0,023], las dos significativas. El KNN de regresión empata con la popularidad: −0,000 [−0,006; +0,005].
 
+### Rendimiento según cuánto lee cada lector
+
+`python main.py actividad` evalúa a todos los lectores del corte temporal (744) y separa el NDCG@20 según cuántos libros leyó cada uno en train. Genera `resultados/ndcg_por_actividad.png` y un CSV con la tabla.
+
+![NDCG@20 según actividad del lector](resultados/ndcg_por_actividad.png)
+
+| Lecturas en train | Lectores | popularidad | knn_regresion | user-kNN | EASE |
+|---|---|---|---|---|---|
+| 3-9 | 60 | 0,028 | 0,024 | **0,065** | 0,050 |
+| 10-24 | 80 | 0,017 | 0,021 | 0,048 | **0,070** |
+| 25-49 | 98 | 0,019 | 0,017 | 0,042 | **0,054** |
+| 50-99 | 151 | 0,020 | 0,021 | 0,036 | **0,039** |
+| 100-249 | 218 | 0,015 | 0,011 | 0,023 | **0,034** |
+| 250+ | 137 | 0,013 | 0,019 | 0,020 | **0,028** |
+
+- **EASE es la mejor estrategia en casi todos los grupos.** En el grupo de 3-9 lecturas le gana user-kNN, pero con 60 lectores los intervalos se superponen y no es una diferencia confiable.
+- **A más lecturas, más bajo el NDCG para todos los modelos.** Es contraintuitivo, pero tiene explicación: los lectores muy activos leen libros más raros. El libro típico que un lector de 250+ lee en 2024 tiene apenas 5 lecturas previas, contra 78 en el grupo de 3-9. Además, solo el 39 % de sus libros de test está en el catálogo de EASE y user-kNN (los libros con 10 o más lecturas), contra el 72 % en los lectores de 3-9.
+- **El KNN de regresión y la popularidad no se separan en ningún grupo.**
+- La mayor ganancia de los modelos colaborativos está en los lectores de actividad baja y media (10 a 50 lecturas). Para los muy activos, el siguiente paso sería bajar `MIN_LECTURAS_LIBRO` o sumar contenido (autor, género) para llegar a la cola larga.
+
 ### Ojo con comparar el split al azar con Kaggle
 
 El mejor puntaje en Kaggle fue 0,0225 con el KNN de regresión. Acá ese mismo modelo da 0,062. No son comparables: el test de Kaggle está oculto, tiene otros lectores y probablemente otro criterio, quizás temporal o con todas las lecturas y no solo las positivas. Esta evaluación sirve para **ordenar** las estrategias. La prueba definitiva es subir los CSV a Kaggle (`python main.py kaggle --todas`).
@@ -92,6 +112,7 @@ sistema_recomendacion_libros/
 ├── modelos.py       las 7 estrategias
 ├── evaluacion.py    NDCG, precision, recall, hit rate e intervalos de confianza
 ├── tests/           tests automáticos (pytest)
+├── resultados/      gráficos (por ejemplo, NDCG según actividad del lector)
 └── submissions/     CSV para subir a Kaggle (los genera main.py kaggle)
 ```
 
@@ -107,6 +128,7 @@ python main.py split --ultimas       # alternativa: último 20 % de cada lector
 python main.py split --ultimos-n 20  # alternativa: últimas 20 lecturas de cada lector
 python main.py split                 # alternativa: 80/20 al azar por lector
 python main.py evaluar               # tabla de resultados (tarda unos 8 minutos, casi todo es el KNN de regresión)
+python main.py actividad             # NDCG según cuántos libros leyó cada lector (gráfico)
 python main.py kaggle ease           # submissions/submission_ease.csv
 python main.py kaggle --todas        # un CSV por estrategia
 python -m pytest                     # tests

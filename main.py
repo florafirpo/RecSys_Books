@@ -7,6 +7,7 @@ Punto de entrada del recomendador de libros (competencia de Kaggle).
     python main.py split --ultimas        a cada lector le esconde su ultimo 20% (por fecha)
     python main.py split --ultimos-n 20   a cada lector le esconde sus ultimas 20 lecturas
     python main.py evaluar                compara todas las estrategias sobre test
+    python main.py actividad              NDCG segun cuantos libros leyo cada lector (tabla + grafico)
     python main.py kaggle ease            arma el CSV para Kaggle con la estrategia elegida
     python main.py kaggle --todas         arma un CSV por cada estrategia
 
@@ -50,6 +51,11 @@ def comando_evaluar(args):
     evaluacion.evaluar_todo()
 
 
+def comando_actividad(args):
+    import evaluacion
+    evaluacion.evaluar_por_actividad()
+
+
 def comando_kaggle(args):
     """Entrena con TODA la base (data.db) y recomienda N libros a cada lector de ejemplo.csv."""
     import modelos
@@ -86,6 +92,9 @@ def crear_parser():
 
     p = sub.add_parser("evaluar", help="compara las estrategias sobre test")
     p.set_defaults(funcion=comando_evaluar)
+
+    p = sub.add_parser("actividad", help="NDCG segun cuantos libros leyo cada lector")
+    p.set_defaults(funcion=comando_actividad)
 
     p = sub.add_parser("kaggle", help="arma el CSV de submission")
     p.add_argument("estrategia", nargs="?", default="ease", choices=ESTRATEGIAS_KAGGLE)
