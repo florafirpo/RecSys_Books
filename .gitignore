@@ -1,0 +1,10 @@
+# Entorno y cache de Python
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Datos y resultados (no se suben)
+*.db
+*.csv
+submissions/
