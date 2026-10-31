@@ -12,7 +12,7 @@ Punto de entrada del recomendador de libros (competencia de Kaggle).
     python main.py kaggle --todas         arma un CSV por cada estrategia
 
 Estrategias para 'kaggle': azar, popularidad, genero, knn_regresion,
-knn_regresion_escalado, user_knn, ease.
+knn_regresion_escalado, user_knn, ease, hibrido.
 Las rutas y los parametros se cambian en config.py.
 """
 
@@ -24,7 +24,7 @@ import pandas as pd
 import config
 
 ESTRATEGIAS_KAGGLE = ["azar", "popularidad", "genero", "knn_regresion",
-                      "knn_regresion_escalado", "user_knn", "ease"]
+                      "knn_regresion_escalado", "user_knn", "ease", "hibrido"]
 
 
 def crear_estrategia(nombre, datos, n):

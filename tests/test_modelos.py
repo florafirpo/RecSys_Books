@@ -57,3 +57,12 @@ def test_la_matriz_respeta_el_minimo_de_lecturas(datos):
     # con 3+ lecturas solo quedan L1 (3), L2 (3), L3 (2 -> no), L4 (4)
     assert libros == ["L1", "L2", "L4"]
     assert X.shape == (4, 3) and X.sum() == 10
+
+
+def test_hibrido_elige_la_estrategia_segun_lecturas(datos, monkeypatch):
+    # en la base de juguete: dani leyo 2 libros, caro 3, ana 5
+    monkeypatch.setattr(modelos.config, "MIN_LECTURAS_LIBRO", 1)
+    hibrido = modelos.crear_hibrido(datos, n=2, min_para_user_knn=3, min_para_ease=5)
+    assert hibrido("dani") == modelos.crear_popularidad(datos, n=2)("dani")
+    assert hibrido("caro") == modelos.crear_user_knn(datos, n=2)("caro")
+    assert hibrido("ana") == modelos.crear_ease(datos, n=2)("ana")

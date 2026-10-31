@@ -88,6 +88,7 @@ def estrategias_a_evaluar(datos, n):
         "knn_regresion escalado": lambda: modelos.crear_knn_regresion(datos, n, escalar=True),
         f"user-kNN (k={config.K_VECINOS})": lambda: modelos.crear_user_knn(datos, n),
         f"EASE (lambda={config.LAMBDA_EASE})": lambda: modelos.crear_ease(datos, n),
+        "hibrido (pop / user-kNN / EASE)": lambda: modelos.crear_hibrido(datos, n),
     }
 
 

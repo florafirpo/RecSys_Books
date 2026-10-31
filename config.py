@@ -60,3 +60,7 @@ K_REGRESION = 20                # vecinos del KNeighborsRegressor
 MIN_LECTURAS_LIBRO = 10
 K_VECINOS = 50          # user-kNN
 LAMBDA_EASE = 500       # EASE
+
+# Hibrido: que estrategia usar segun cuantos libros leyo el lector
+MIN_LECTURAS_USER_KNN = 3   # menos de 3 libros -> popularidad
+MIN_LECTURAS_EASE = 7       # de 3 a 6 -> user-kNN; 7 o mas -> EASE

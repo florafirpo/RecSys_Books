@@ -97,6 +97,22 @@ Contra popularidad, con el corte temporal: EASE +0,024 [+0,017; +0,032] y user-k
 - **El KNN de regresión y la popularidad no se separan en ningún grupo.**
 - La mayor ganancia de los modelos colaborativos está en los lectores de actividad baja y media (10 a 50 lecturas). Para los muy activos, el siguiente paso sería bajar `MIN_LECTURAS_LIBRO` o sumar contenido (autor, género) para llegar a la cola larga.
 
+### Ensamble por actividad (híbrido)
+
+`hibrido` elige la estrategia según cuántos libros leyó el lector: menos de 3, popularidad; de 3 a 6, user-kNN; 7 o más, EASE. Los cortes se cambian en `config.py` (`MIN_LECTURAS_USER_KNN`, `MIN_LECTURAS_EASE`).
+
+Resultado con el corte temporal (744 lectores):
+
+| Estrategia | NDCG@20 |
+|---|---|
+| user-kNN | 0,0337 |
+| EASE | 0,0416 |
+| **híbrido** | **0,0419** |
+
+- **Híbrido contra EASE: +0,0003, IC 95 % [−0,0009; +0,0016], no significativa.** El híbrido solo cambia la recomendación de los lectores con menos de 7 libros, que son 41 de 744 en test (y 80 de 832 en Kaggle), así que el efecto total es muy chico.
+- En esos 41 lectores de 3 a 6 libros, user-kNN da 0,067 y EASE 0,061. La diferencia va a favor de user-kNN, pero con tan pocos lectores el intervalo es amplio: +0,006 [−0,018; +0,028].
+- Conclusión: el híbrido tiene sentido conceptual y no empeora nada, pero con estos datos no se puede afirmar que mejore. Kaggle lo puede confirmar o descartar (`python main.py kaggle hibrido`).
+
 ### Ojo con comparar el split al azar con Kaggle
 
 El mejor puntaje en Kaggle fue 0,0225 con el KNN de regresión. Acá ese mismo modelo da 0,062. No son comparables: el test de Kaggle está oculto, tiene otros lectores y probablemente otro criterio, quizás temporal o con todas las lecturas y no solo las positivas. Esta evaluación sirve para **ordenar** las estrategias. La prueba definitiva es subir los CSV a Kaggle (`python main.py kaggle --todas`).
@@ -156,6 +172,7 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 | `knn_regresion` | Del notebook: candidatos por género, recortados a los 200 más leídos, ordenados por el rating que predice un `KNeighborsRegressor` (k = 20) |
 | `user-kNN` | Recomienda lo que leyeron los 50 lectores más parecidos (similitud coseno) |
 | `EASE` | Modelo lineal libro × libro con fórmula cerrada (Steck, 2019) |
+| `hibrido` | Popularidad (menos de 3 libros), user-kNN (de 3 a 6) o EASE (7 o más), según cuánto leyó el lector |
 
 ## Tests
 
@@ -164,6 +181,7 @@ Cubren:
 - **Corte temporal**: en train no queda nada posterior al corte, test solo tiene lecturas positivas de lectores con pasado, se entienden los dos formatos de fecha y las fechas ilegibles quedan en train.
 - **Split anti-leakage**: ninguna lectura queda en train y test a la vez, test solo tiene lecturas positivas, se respeta el 20 %, la separación es reproducible y no modifica la base original.
 - **Métricas**: NDCG calculado a mano, y que premie acertar arriba.
+- **Híbrido**: elige popularidad, user-kNN o EASE según las lecturas del lector.
 - **Estrategias**: ninguna recomienda libros ya leídos ni repite libros, un lector desconocido recibe popularidad y user-kNN recomienda lo que leyó el lector más parecido.
 
 ## Limitaciones y próximos pasos

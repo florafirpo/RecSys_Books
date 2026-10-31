@@ -17,6 +17,9 @@ Estrategias:
                     rating que predice un KNeighborsRegressor.
   - user_knn      : filtrado colaborativo, lectores parecidos (coseno).
   - ease          : modelo lineal libro x libro (Steck, 2019).
+  - hibrido       : elige la estrategia segun cuanto leyo el lector:
+                    menos de 3 libros -> popularidad, de 3 a 6 -> user-kNN,
+                    mas de 6 -> EASE.
 """
 
 import random
@@ -294,3 +297,29 @@ def crear_ease(datos, n=config.N_RECOMENDACIONES, lambda_=config.LAMBDA_EASE):
     np.fill_diagonal(B, 0)
     puntajes = X @ B.astype(np.float32)
     return estrategia_desde_puntajes(puntajes, X, lectores, libros, datos, n)
+
+
+# ===========================================================================
+# Ensamble por actividad del lector
+# ===========================================================================
+
+def crear_hibrido(datos, n=config.N_RECOMENDACIONES,
+                  min_para_user_knn=config.MIN_LECTURAS_USER_KNN, min_para_ease=config.MIN_LECTURAS_EASE):
+    """Elige la estrategia segun cuantos libros leyo el lector:
+      - menos de min_para_user_knn       -> popularidad (cold start)
+      - de min_para_user_knn a min_para_ease - 1 -> user-kNN
+      - min_para_ease o mas              -> EASE
+    Los modelos se entrenan una sola vez y se reutilizan para todos los lectores."""
+    popularidad = crear_popularidad(datos, n)
+    user_knn = crear_user_knn(datos, n)
+    ease = crear_ease(datos, n)
+
+    def estrategia(id_lector):
+        leidos = len(datos["leidos"].get(id_lector, ()))
+        if leidos < min_para_user_knn:
+            return popularidad(id_lector)
+        if leidos < min_para_ease:
+            return user_knn(id_lector)
+        return ease(id_lector)
+
+    return estrategia
