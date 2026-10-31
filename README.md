@@ -46,7 +46,24 @@ El orden coincide con la evaluación offline (EASE > user-kNN > KNN de regresió
 3. **Escalar las variables del KNN no cambia nada.** En el notebook, `cantidad_interacciones_libro` (hasta 2.230) domina la distancia frente a los promedios (1 a 10). Probamos estandarizar las variables y el resultado es el mismo, así que el problema es el enfoque de regresión de ratings, no la escala.
 4. **La estrategia por género sola no sirve** (0,0004, igual que el azar). Elegir al azar dentro de los géneros del lector sigue dejando miles de candidatos.
 
-### Ojo con comparar estos números con Kaggle
+### Evaluación con corte temporal: la que se parece a Kaggle
+
+`python main.py split --temporal 2024-01-01` arma train con todo lo anterior al 1/1/2024 y test con las lecturas positivas de 2024 en adelante. En test solo entran los lectores con al menos 3 lecturas previas: 744 lectores y 5.110 lecturas.
+
+| Estrategia | NDCG@20 con corte temporal | NDCG@20 en Kaggle |
+|---|---|---|
+| knn_regresion (notebook) | 0,0173 | 0,0225 |
+| popularidad | 0,0175 | — |
+| user-kNN | 0,0337 | 0,0318 |
+| **EASE** | **0,0416** | **0,0418** |
+
+Con el corte temporal, los puntajes offline coinciden con los de Kaggle **en orden y también en valor**: EASE da 0,0416 acá y 0,0418 allá. Es una señal fuerte de que el test de Kaggle es temporal, es decir, lo que los lectores leyeron después.
+
+**Conclusión: el corte temporal es la evaluación a usar para elegir modelos.** El split al azar da números unas 7 veces más altos, porque esconder lecturas al azar es más fácil que predecir el futuro.
+
+Contra popularidad, con el corte temporal: EASE +0,024 [+0,017; +0,032] y user-kNN +0,016 [+0,010; +0,023], las dos significativas. El KNN de regresión empata con la popularidad: −0,000 [−0,006; +0,005].
+
+### Ojo con comparar el split al azar con Kaggle
 
 El mejor puntaje en Kaggle fue 0,0225 con el KNN de regresión. Acá ese mismo modelo da 0,062. No son comparables: el test de Kaggle está oculto, tiene otros lectores y probablemente otro criterio, quizás temporal o con todas las lecturas y no solo las positivas. Esta evaluación sirve para **ordenar** las estrategias. La prueba definitiva es subir los CSV a Kaggle (`python main.py kaggle --todas`).
 
@@ -71,7 +88,8 @@ Los datos (`data.db` y `ejemplo.csv`) van en la carpeta de arriba (`libros/`).
 ```bash
 pip install pandas numpy scikit-learn pytest
 
-python main.py split                 # separa data.db en data_train.db y data_test.db
+python main.py split --temporal 2024-01-01   # corte por fecha (el que se parece a Kaggle)
+python main.py split                 # alternativa: 80/20 al azar por lector
 python main.py evaluar               # tabla de resultados (tarda unos 8 minutos, casi todo es el KNN de regresión)
 python main.py kaggle ease           # submissions/submission_ease.csv
 python main.py kaggle --todas        # un CSV por estrategia
@@ -82,6 +100,8 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 
 ## Metodología
 
+- **Dos splits.** El **temporal** (`--temporal AAAA-MM-DD`) es el principal, porque reproduce Kaggle. El **80/20 al azar por lector** sirve como referencia.
+  - En el temporal, todas las lecturas posteriores al corte salen de train, aunque no vayan a test. Si no, el modelo vería el futuro de otros lectores. Las pocas lecturas con fecha ilegible quedan en train.
 - **Split 80/20 por lector.** A cada lector se le esconde el 20 % de sus lecturas, elegidas entre las positivas (rating ≥ 8; el 50 % de las lecturas lo cumple). Cada lector conserva al menos 3 lecturas en train. Quedan 89.559 lecturas en test, repartidas entre 7.185 lectores.
   - Esto reemplaza al `train_test_split` por filas del notebook. Ese split mezcla las filas de todos los lectores y sirve para medir RMSE, pero no responde la pregunta de la competencia: qué 20 libros recomendarle a cada lector.
 - **Sin fuga de datos.** Todas las variables (promedios, cantidad de lecturas, correlación entre géneros, matrices) se calculan solo con train.
@@ -101,12 +121,14 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 ## Tests
 
 Cubren:
+- **Corte temporal**: en train no queda nada posterior al corte, test solo tiene lecturas positivas de lectores con pasado, se entienden los dos formatos de fecha y las fechas ilegibles quedan en train.
 - **Split anti-leakage**: ninguna lectura queda en train y test a la vez, test solo tiene lecturas positivas, se respeta el 20 %, la separación es reproducible y no modifica la base original.
 - **Métricas**: NDCG calculado a mano, y que premie acertar arriba.
 - **Estrategias**: ninguna recomienda libros ya leídos ni repite libros, un lector desconocido recibe popularidad y user-kNN recomienda lo que leyó el lector más parecido.
 
 ## Limitaciones y próximos pasos
 
-- `K_VECINOS` y `LAMBDA_EASE` no se ajustaron para este dataset: son los valores del proyecto de recetas. Con una validación tomada de train, EASE probablemente mejore.
+- `K_VECINOS` y `LAMBDA_EASE` no se ajustaron para este dataset: son los valores del proyecto de recetas. El próximo paso es ajustarlos con un corte temporal **dentro de train** (por ejemplo, validar con 2023), sin tocar el test de 2024.
+- Con el corte temporal se puede probar darle más peso a las lecturas recientes, en la popularidad y en EASE.
 - Para lectores sin historial, todas las estrategias caen en popularidad.
 - El catálogo de EASE y user-kNN excluye los libros con menos de 10 lecturas, así que esas estrategias nunca los recomiendan.

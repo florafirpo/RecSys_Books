@@ -68,3 +68,54 @@ def test_la_base_original_no_se_modifica(base, tmp_path):
     separar_train_test(base, str(tmp_path / "train.db"), str(tmp_path / "test.db"))
     with open(base, "rb") as f:
         assert hashlib.sha256(f.read()).hexdigest() == antes
+
+
+# ---------------------------------------------------------------------------
+# Corte temporal
+# ---------------------------------------------------------------------------
+
+from dataset import leer_fecha, separar_train_test_temporal  # noqa: E402
+
+
+def crear_base_con_fechas(tmp_path):
+    """ana y beto leen antes y despues del corte; caro solo despues."""
+    db = crear_base(tmp_path / "data.db")
+    con = sqlite3.connect(db)
+    con.execute("DELETE FROM interacciones")
+    con.executemany("INSERT INTO interacciones VALUES (?, ?, ?, ?)", [
+        ("ana", "L1", "10-05-2022", 9), ("ana", "L2", "11-05-2022", 8), ("ana", "L3", "12-05-2022", 7),
+        ("ana", "L4", "03-02-2024", 9),   # futura positiva -> test
+        ("ana", "L5", "04-02-2024", 4),   # futura negativa -> sale de train, no va a test
+        ("beto", "L1", "01-01-2021", 9), ("beto", "L2", "02-01-2021", 9), ("beto", "L4", "03-01-2021", 9),
+        ("beto", "L6", "2026-09-19", 10),  # formato de la pagina web, tambien futura
+        ("caro", "L1", "05-06-2024", 10),  # sin pasado: no se puede evaluar
+        ("dani", "L2", "muy poco creibles", 8),  # fecha ilegible: queda en train
+    ])
+    con.commit()
+    con.close()
+    db_train, db_test = str(tmp_path / "train.db"), str(tmp_path / "test.db")
+    separar_train_test_temporal("2024-01-01", db, db_train, db_test, min_en_train=3, rating_positivo=8)
+    return db, db_train, db_test
+
+
+def test_leer_fecha_entiende_los_dos_formatos():
+    assert leer_fecha("03-02-2024").year == 2024
+    assert leer_fecha("2026-09-19").month == 9
+    assert leer_fecha("muy poco creibles") is None
+
+
+def test_temporal_train_no_tiene_nada_posterior_al_corte(tmp_path):
+    _, db_train, _ = crear_base_con_fechas(tmp_path)
+    con = sqlite3.connect(db_train)
+    fechas = [leer_fecha(f) for (f,) in con.execute("SELECT fecha FROM interacciones")]
+    assert all(f is None or f.year < 2024 for f in fechas)
+
+
+def test_temporal_test_solo_positivas_de_lectores_con_pasado(tmp_path):
+    _, _, db_test = crear_base_con_fechas(tmp_path)
+    assert pares(db_test) == {("ana", "L4"), ("beto", "L6")}
+
+
+def test_temporal_fecha_ilegible_queda_en_train(tmp_path):
+    _, db_train, _ = crear_base_con_fechas(tmp_path)
+    assert ("dani", "L2") in pares(db_train)
