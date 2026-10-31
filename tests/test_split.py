@@ -119,3 +119,29 @@ def test_temporal_test_solo_positivas_de_lectores_con_pasado(tmp_path):
 def test_temporal_fecha_ilegible_queda_en_train(tmp_path):
     _, db_train, _ = crear_base_con_fechas(tmp_path)
     assert ("dani", "L2") in pares(db_train)
+
+
+# ---------------------------------------------------------------------------
+# Ultimo 20% por lector
+# ---------------------------------------------------------------------------
+
+from dataset import separar_train_test_ultimas  # noqa: E402
+
+
+def test_ultimas_esconde_las_mas_recientes_de_cada_lector(tmp_path):
+    # ana tiene 10 lecturas, una por año; con 20% se le esconden las 2 ultimas (2028 y 2029)
+    libros = [(f"L{k}", "Narrativa") for k in range(10)]
+    interacciones = [("ana", f"L{k}", 9) for k in range(10)]
+    db = crear_base(tmp_path / "data.db", libros, interacciones)
+    con = sqlite3.connect(db)
+    for k in range(10):
+        con.execute("UPDATE interacciones SET fecha = ? WHERE id_libro = ?", (f"01-01-{2020 + k}", f"L{k}"))
+    con.execute("UPDATE interacciones SET rating = 3 WHERE id_libro = 'L8'")  # una de las ultimas es negativa
+    con.commit()
+    con.close()
+
+    db_train, db_test = str(tmp_path / "train.db"), str(tmp_path / "test.db")
+    separar_train_test_ultimas(db, db_train, db_test, fraccion_test=0.2, min_que_quedan=3, rating_positivo=8)
+    assert pares(db_test) == {("ana", "L9")}  # solo la positiva va a test
+    assert ("ana", "L8") not in pares(db_train)  # pero la negativa tambien sale de train
+    assert len(pares(db_train)) == 8

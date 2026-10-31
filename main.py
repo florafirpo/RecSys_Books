@@ -4,6 +4,7 @@ Punto de entrada del recomendador de libros (competencia de Kaggle).
     python main.py split                  separa data.db en train y test (80/20 por lector, al azar)
     python main.py split --temporal 2024-01-01
                                           corte por fecha: train = antes, test = desde esa fecha
+    python main.py split --ultimas        a cada lector le esconde su ultimo 20% (por fecha)
     python main.py evaluar                compara todas las estrategias sobre test
     python main.py kaggle ease            arma el CSV para Kaggle con la estrategia elegida
     python main.py kaggle --todas         arma un CSV por cada estrategia
@@ -35,6 +36,8 @@ def comando_split(args):
     import dataset
     if args.temporal:
         dataset.separar_train_test_temporal(args.temporal)
+    elif args.ultimas:
+        dataset.separar_train_test_ultimas()
     else:
         dataset.separar_train_test()
 
@@ -72,6 +75,8 @@ def crear_parser():
     p = sub.add_parser("split", help="separa data.db en train y test")
     p.add_argument("--temporal", metavar="AAAA-MM-DD", default=None,
                    help="corte por fecha en lugar de al azar")
+    p.add_argument("--ultimas", action="store_true",
+                   help="a cada lector le esconde su ultimo 20%% de lecturas (por fecha)")
     p.set_defaults(funcion=comando_split)
 
     p = sub.add_parser("evaluar", help="compara las estrategias sobre test")

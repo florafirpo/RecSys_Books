@@ -57,6 +57,18 @@ El orden coincide con la evaluación offline (EASE > user-kNN > KNN de regresió
 | user-kNN | 0,0337 | 0,0318 |
 | **EASE** | **0,0416** | **0,0418** |
 
+### Comparación de las tres formas de separar train y test
+
+| Estrategia | Al azar (80/20) | Último 20 % por lector | Corte global (2024) | **Kaggle** |
+|---|---|---|---|---|
+| knn_regresion (notebook) | 0,0619 | 0,0384 | 0,0173 | **0,0225** |
+| user-kNN | 0,2394 | 0,0970 | 0,0337 | **0,0318** |
+| EASE | 0,2949 | 0,1271 | 0,0416 | **0,0418** |
+
+Las tres evaluaciones ordenan igual a los modelos. Las dos primeras dan valores entre 3 y 7 veces más altos que Kaggle. El corte global es el único que coincide también en los valores.
+
+`python main.py split --ultimas` esconde a cada lector su último 20 % de lecturas, ordenadas por fecha. Todas esas lecturas salen de train y a test van solo las positivas: 6.413 lectores y 44.939 lecturas.
+
 Con el corte temporal, los puntajes offline coinciden con los de Kaggle **en orden y también en valor**: EASE da 0,0416 acá y 0,0418 allá. Es una señal fuerte de que el test de Kaggle es temporal, es decir, lo que los lectores leyeron después.
 
 **Conclusión: el corte temporal es la evaluación a usar para elegir modelos.** El split al azar da números unas 7 veces más altos, porque esconder lecturas al azar es más fácil que predecir el futuro.
@@ -89,6 +101,7 @@ Los datos (`data.db` y `ejemplo.csv`) van en la carpeta de arriba (`libros/`).
 pip install pandas numpy scikit-learn pytest
 
 python main.py split --temporal 2024-01-01   # corte por fecha (el que se parece a Kaggle)
+python main.py split --ultimas       # alternativa: último 20 % de cada lector
 python main.py split                 # alternativa: 80/20 al azar por lector
 python main.py evaluar               # tabla de resultados (tarda unos 8 minutos, casi todo es el KNN de regresión)
 python main.py kaggle ease           # submissions/submission_ease.csv
@@ -100,7 +113,7 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 
 ## Metodología
 
-- **Dos splits.** El **temporal** (`--temporal AAAA-MM-DD`) es el principal, porque reproduce Kaggle. El **80/20 al azar por lector** sirve como referencia.
+- **Tres splits.** El **corte global por fecha** (`--temporal AAAA-MM-DD`) es el principal, porque reproduce Kaggle. El **último 20 % por lector** (`--ultimas`) y el **80/20 al azar por lector** (sin opciones) sirven como referencia.
   - En el temporal, todas las lecturas posteriores al corte salen de train, aunque no vayan a test. Si no, el modelo vería el futuro de otros lectores. Las pocas lecturas con fecha ilegible quedan en train.
 - **Split 80/20 por lector.** A cada lector se le esconde el 20 % de sus lecturas, elegidas entre las positivas (rating ≥ 8; el 50 % de las lecturas lo cumple). Cada lector conserva al menos 3 lecturas en train. Quedan 89.559 lecturas en test, repartidas entre 7.185 lectores.
   - Esto reemplaza al `train_test_split` por filas del notebook. Ese split mezcla las filas de todos los lectores y sirve para medir RMSE, pero no responde la pregunta de la competencia: qué 20 libros recomendarle a cada lector.
@@ -121,6 +134,7 @@ Para `kaggle` hace falta `ejemplo.csv` (la lista de los 832 lectores) en la carp
 ## Tests
 
 Cubren:
+- **Último 20 % por lector**: se esconden las lecturas más recientes de cada lector, las negativas también salen de train y a test solo van las positivas.
 - **Corte temporal**: en train no queda nada posterior al corte, test solo tiene lecturas positivas de lectores con pasado, se entienden los dos formatos de fecha y las fechas ilegibles quedan en train.
 - **Split anti-leakage**: ninguna lectura queda en train y test a la vez, test solo tiene lecturas positivas, se respeta el 20 %, la separación es reproducible y no modifica la base original.
 - **Métricas**: NDCG calculado a mano, y que premie acertar arriba.
