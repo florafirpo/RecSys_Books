@@ -158,9 +158,11 @@ def separar_train_test_temporal(fecha_corte, db_completa=config.DB_COMPLETA, db_
 
 def separar_train_test_ultimas(db_completa=config.DB_COMPLETA, db_train=config.DB_TRAIN, db_test=config.DB_TEST,
                                fraccion_test=config.FRACCION_TEST, min_que_quedan=config.MIN_QUE_QUEDAN,
-                               rating_positivo=config.RATING_POSITIVO):
+                               rating_positivo=config.RATING_POSITIVO, cantidad_fija=None):
     """Corte temporal POR LECTOR: a cada lector se le esconde su ultimo
-    'fraccion_test' de lecturas, ordenadas por fecha.
+    'fraccion_test' de lecturas, ordenadas por fecha. Con cantidad_fija=20
+    se le esconden sus ultimas 20 lecturas (o menos, si no le quedarian
+    min_que_quedan en train).
 
     - Esas ultimas lecturas salen todas de train (tambien las de rating bajo),
       para que el modelo no vea el "futuro" de ese lector.
@@ -198,7 +200,10 @@ def separar_train_test_ultimas(db_completa=config.DB_COMPLETA, db_train=config.D
         filas = por_lector[id_lector]
         # orden por fecha (y por id_libro para desempatar el mismo dia, asi es reproducible)
         filas.sort(key=lambda f: (leer_fecha(f[2]) or muy_vieja, f[1]))
-        cantidad = min(max(1, round(fraccion_test * len(filas))), len(filas) - min_que_quedan)
+        if cantidad_fija:
+            cantidad = min(cantidad_fija, len(filas) - min_que_quedan)
+        else:
+            cantidad = min(max(1, round(fraccion_test * len(filas))), len(filas) - min_que_quedan)
         if cantidad <= 0:
             continue
         ultimas = filas[-cantidad:]
@@ -215,7 +220,8 @@ def separar_train_test_ultimas(db_completa=config.DB_COMPLETA, db_train=config.D
     train.close()
     test.close()
 
-    print(f"Lecturas sacadas de train (el ultimo {fraccion_test:.0%} de cada lector): {len(a_sacar)}")
+    criterio = f"las ultimas {cantidad_fija}" if cantidad_fija else f"el ultimo {fraccion_test:.0%}"
+    print(f"Lecturas sacadas de train ({criterio} de cada lector): {len(a_sacar)}")
     print(f"Lecturas en test (las positivas de esas): {len(para_test)}")
     print(f"Lectores en test: {len({f[0] for f in para_test})}")
     print(f"Guardado en {os.path.basename(db_train)} y {os.path.basename(db_test)}")

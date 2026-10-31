@@ -145,3 +145,16 @@ def test_ultimas_esconde_las_mas_recientes_de_cada_lector(tmp_path):
     assert pares(db_test) == {("ana", "L9")}  # solo la positiva va a test
     assert ("ana", "L8") not in pares(db_train)  # pero la negativa tambien sale de train
     assert len(pares(db_train)) == 8
+
+
+def test_ultimos_n_esconde_una_cantidad_fija(tmp_path):
+    # ana tiene 30 lecturas positivas: con N=20 se le esconden 20 y quedan 10 en train;
+    # beto tiene 5: solo se le pueden esconder 2 (le quedan 3 en train)
+    libros = [(f"L{k}", "Narrativa") for k in range(30)]
+    interacciones = [("ana", f"L{k}", 9) for k in range(30)] + [("beto", f"L{k}", 9) for k in range(5)]
+    db = crear_base(tmp_path / "data.db", libros, interacciones)
+    db_train, db_test = str(tmp_path / "train.db"), str(tmp_path / "test.db")
+    separar_train_test_ultimas(db, db_train, db_test, min_que_quedan=3, rating_positivo=8, cantidad_fija=20)
+    en_test = [u for u, _ in pares(db_test)]
+    assert en_test.count("ana") == 20 and en_test.count("beto") == 2
+    assert pares(db_train) & pares(db_test) == set()
